@@ -9,6 +9,16 @@ const BrowserWindow = electron.BrowserWindow;
 const app = electron.app;
 const ipcMain = electron.ipcMain;
 
+const { protocol } = require('electron');
+
+protocol.registerSchemesAsPrivileged([{
+    scheme: 'app',
+    privileges: {
+        standard: true,
+        secure: true
+    }
+}]);
+
 function createWindow(connection, opts) {
     if ('webPreferences' in opts) {
         opts.webPreferences['nodeIntegration'] = true
@@ -29,7 +39,7 @@ function createWindow(connection, opts) {
     var win_id = win.id
 
     win.webContents.on("did-finish-load", function() {
-        win.webContents.executeJavaScript("const {ipcRenderer} = require('electron'); window.Cookies = ipcRenderer.defaultSession.cookies; function sendMessageToJulia(message) { ipcRenderer.send('msg-for-julia-process', message); }; global['sendMessageToJulia'] = sendMessageToJulia;undefined")
+        win.webContents.executeJavaScript("const {ipcRenderer} = require('electron'); function sendMessageToJulia(message) { ipcRenderer.send('msg-for-julia-process', message); }; global['sendMessageToJulia'] = sendMessageToJulia;undefined")
     })
 
     win.webContents.once("did-finish-load", function() {
@@ -113,6 +123,15 @@ electron.app.on('ready', function () {
         cmd_as_json = JSON.parse(line)
         process_command(connection, cmd_as_json)
     })
+
+    protocol.registerFileProtocol('app', (request, callback) => {
+        const url = request.url.substr(6);
+        callback({
+            path: path.normalize(`${__dirname}/${url}`)
+        });
+    }, (error) => {
+        if (error) console.error('Failed to register protocol');
+    });
 
 })
 
